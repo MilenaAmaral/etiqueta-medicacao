@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SysMed — Sistema de Etiquetas Hospitalares</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="topbar-logo">
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect width="26" height="26" rx="6" fill="#1a56db"/><path d="M8 13h10M13 8v10" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
+    SysMed
+    <span class="topbar-badge">Pronto Atendimento</span>
+  </div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-info">
+    <span>🏥 UPA Central</span>
+    <span>👤 <strong>Téc. Enf. — Usuário logado</strong></span>
+    <span class="topbar-clock" id="clock">--:--:--</span>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="sidebar-section-title">Pacientes em Atendimento</div>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" placeholder="Buscar paciente..." oninput="filtrarPacientes()"/>
+  </div>
+  <div id="patient-list"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="tabs">
+    <div class="tab active" onclick="showTab('dados')">📋 Dados do Paciente</div>
+    <div class="tab" onclick="showTab('prescricao')">💊 Prescrição</div>
+    <div class="tab" onclick="showTab('etiqueta')">🏷️ Gerar Etiqueta</div>
+  </div>
+
+  <div id="content">
+
+    <!-- ── TAB: DADOS ── -->
+    <div id="tab-dados" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>👤 Identificação</h3>
+          <span class="chip" id="chip-atend">—</span>
+        </div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item" style="grid-column:1/-1">
+              <span class="info-label">Nome Completo</span>
+              <span class="info-value big" id="d-nome">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Nome da Mãe</span>
+              <span class="info-value" id="d-mae">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Data de Nascimento</span>
+              <span class="info-value" id="d-nasc">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">CPF</span>
+              <span class="info-value" id="d-cpf">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Convênio / SUS</span>
+              <span class="info-value" id="d-convenio">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Sexo</span>
+              <span class="info-value" id="d-sexo">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Peso</span>
+              <span class="info-value" id="d-peso">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>⚠️ Alergias &amp; Antecedentes</h3>
+        </div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item" style="grid-column:1/-1">
+              <span class="info-label">Alergias conhecidas</span>
+              <span class="info-value alert" id="d-alergia">—</span>
+            </div>
+            <div class="info-item" style="grid-column:1/-1">
+              <span class="info-label">Antecedentes / Comorbidades</span>
+              <span class="info-value" id="d-antecedentes">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-dados-right" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>🏥 Atendimento</h3>
+        </div>
+        <div class="card-body">
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-label">Nº Atendimento</span>
+              <span class="info-value big" id="d-atend">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Data de Entrada</span>
+              <span class="info-value" id="d-entrada">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Médico Responsável</span>
+              <span class="info-value" id="d-medico">—</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Leito / Sala</span>
+              <span class="info-value" id="d-leito">—</span>
+            </div>
+            <div class="info-item" style="grid-column:1/-1">
+              <span class="info-label">Queixa Principal</span>
+              <span class="info-value" id="d-queixa">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3>💊 Prescrições Ativas</h3></div>
+        <div class="card-body">
+          <div class="rx-list" id="rx-list-view">
+            <div style="color:var(--gray-400);font-size:.75rem">Nenhuma prescrição ativa.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: PRESCRIÇÃO ── -->
+    <div id="tab-prescricao" class="tab-content" style="display:none;grid-column:1/-1">
+      <div class="card">
+        <div class="card-header"><h3>💊 Nova Prescrição</h3></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="f-group">
+              <label>Medicação *</label>
+              <select id="p-med" onchange="autoFillMed()">
+                <option value="">— Selecione —</option>
+              </select>
+            </div>
+            <div class="f-group">
+              <label>Via de Administração *</label>
+              <select id="p-via">
+                <option>IV Direto</option>
+                <option>IV em Bomba</option>
+                <option>IM</option>
+                <option>SC</option>
+                <option>VO</option>
+                <option>SL</option>
+                <option>Inalatório</option>
+                <option>Tópico</option>
+              </select>
+            </div>
+            <div class="f-group">
+              <label>Dose / Concentração *</label>
+              <input type="text" id="p-dose" placeholder="Ex: 500 mg/mL Amp 2 mL"/>
+            </div>
+            <div class="f-group">
+              <label>Frequência</label>
+              <select id="p-freq">
+                <option>Dose única</option>
+                <option>6/6h</option>
+                <option>8/8h</option>
+                <option>12/12h</option>
+                <option>24/24h</option>
+                <option>SOS</option>
+                <option>Contínuo</option>
+              </select>
+            </div>
+            <div class="f-group">
+              <label>Médico Prescritor *</label>
+              <select id="p-medico-rx"></select>
+            </div>
+            <div class="f-group">
+              <label>Profissional que Preparará *</label>
+              <select id="p-prof-rx"></select>
+            </div>
+            <div class="f-group full">
+              <label>Observações</label>
+              <textarea id="p-obs" placeholder="Diluir em 100mL SF 0,9%; administrar em 30 min..."></textarea>
+            </div>
+          </div>
+          <div class="btn-bar">
+            <button class="btn-main btn-primary-main" onclick="adicionarRx()">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar Prescrição
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:0">
+        <div class="card-header"><h3>📋 Prescrições do Paciente</h3><span class="chip" id="rx-count">0</span></div>
+        <div class="card-body">
+          <div class="rx-list" id="rx-list-full">
+            <div style="color:var(--gray-400);font-size:.75rem">Nenhuma prescrição cadastrada.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TAB: ETIQUETA ── -->
+    <div id="tab-etiqueta" class="tab-content" style="display:none">
+      <div class="card">
+        <div class="card-header"><h3>🏷️ Configurar Etiqueta</h3></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="f-group">
+              <label>Selecionar Prescrição</label>
+              <select id="e-rx-sel" onchange="selecionarRxEtiq()">
+                <option value="">— Selecione a medicação —</option>
+              </select>
+            </div>
+            <div class="f-group">
+              <label>Profissional que Preparou *</label>
+              <select id="e-prof"></select>
+            </div>
+            <div class="f-group">
+              <label>Data da Administração</label>
+              <input type="date" id="e-data" oninput="renderEtiq()"/>
+            </div>
+            <div class="f-group">
+              <label>Horário</label>
+              <input type="time" id="e-hora" oninput="renderEtiq()"/>
+            </div>
+          </div>
+          <div class="btn-bar">
+            <button class="btn-main btn-print-main" onclick="window.print()">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              Imprimir Etiqueta (100×50mm)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="etiq-wrap">
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-400);font-weight:700;margin-bottom:.2rem">▶ Prévia — ampliada 2.2× (impressão = tamanho real)</div>
+        <div class="etiq-scale">
+          <div id="etiqueta">
+            <div class="e-head">
+              <div class="e-head-title">⊕ Etiqueta de Medicação — UPA Central</div>
+              <div class="e-head-right">Atend.<strong id="e-atend">—</strong></div>
+            </div>
+            <div class="e-pac">
+              <div class="e-pac-name" id="e-nome">NOME DO PACIENTE</div>
+              <div class="e-pac-sub">
+                <span>Mãe: <strong id="e-mae">—</strong></span>
+                <span>Nasc.: <strong id="e-nasc">—</strong></span>
+                <span>Leito: <strong id="e-leito">—</strong></span>
+              </div>
+            </div>
+            <div class="e-body">
+              <div class="e-col-l">
+                <div class="e-alg"><span class="al">⚠ Alergia:</span><span class="av" id="e-alg">—</span></div>
+                <div class="e-fl"><span class="lbl">💊 Medicação</span><span class="val med" id="e-med">—</span></div>
+              </div>
+              <div class="e-col-r">
+                <div class="e-fl"><span class="lbl">📅 Data</span><span class="val" id="e-data-v">—</span></div>
+                <div class="e-fl"><span class="lbl">🕐 Hora</span><span class="val" id="e-hora-v">—</span></div>
+                <div class="e-fl"><span class="lbl">🩺 Médico</span><span class="val" id="e-medico-v">—</span></div>
+                <div class="e-fl"><span class="lbl">Via</span><span class="val" id="e-via-v">—</span></div>
+              </div>
+            </div>
+            <div class="e-foot">
+              <div class="e-foot-f"><span class="lbl">Profissional que preparou</span><span class="val" id="e-prof-v"></span></div>
+              <span class="e-badge">Verificar antes de administrar</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+    <script src="js/script.js"></script>
+
+</body>
+</html>
