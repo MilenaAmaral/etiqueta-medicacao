@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -6,13 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>SysMed — Sistema de Etiquetas Hospitalares</title>
 
-    <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  
+  (function(){
+    var saved = localStorage.getItem('sysmed-theme');
+    var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', theme);
+  })();
+</script>
 </head>
 
 <body>
 
 <!-- TOPBAR -->
 <div id="topbar">
+  <button class="menu-toggle" id="menuToggle" aria-label="Abrir menu de pacientes" aria-expanded="false" onclick="toggleSidebar()">☰</button>
   <div class="topbar-logo">
     <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect width="26" height="26" rx="6" fill="#1a56db"/><path d="M8 13h10M13 8v10" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>
     SysMed
@@ -22,25 +30,41 @@
   <div class="topbar-info">
     <span>🏥 UPA Central</span>
     <span>👤 <strong>Téc. Enf. — Usuário logado</strong></span>
-    <span class="topbar-clock" id="clock">--:--:--</span>
+    <span class="topbar-clock-wrap topbar-clock" id="clock">--:--:--</span>
   </div>
+  <button class="theme-toggle" id="themeToggle" aria-label="Alternar entre modo claro e escuro" onclick="toggleTheme()">🌙</button>
 </div>
+
+<!-- OVERLAY MOBILE -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
 <div id="sidebar">
-  <div class="sidebar-section-title">Pacientes em Atendimento</div>
-  <div class="search-wrap">
-    <input type="text" id="searchInput" placeholder="Buscar paciente..." oninput="filtrarPacientes()"/>
+  <div class="sidebar-section-title">
+    <span>Pacientes em Atendimento</span>
+    <span class="sidebar-count" id="patient-count">0</span>
   </div>
-  <div id="patient-list"></div>
+  <div class="search-wrap">
+    <label for="searchInput" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Buscar paciente</label>
+    <input type="text" id="searchInput" placeholder="Buscar paciente..." oninput="filtrarPacientes()" autocomplete="off"/>
+  </div>
+  <div class="mc-filter" role="group" aria-label="Filtrar por classificação de risco (Manchester)">
+    <button type="button" class="mc-filter-btn active" aria-pressed="true" title="Todos os pacientes" onclick="filtrarClassificacao(null,this)">Todos</button>
+    <button type="button" class="mc-filter-btn mc-vermelho" aria-pressed="false" title="Vermelho — Emergência: atendimento imediato" onclick="filtrarClassificacao('vermelho',this)"></button>
+    <button type="button" class="mc-filter-btn mc-laranja" aria-pressed="false" title="Laranja — Muito urgente: até 10 min" onclick="filtrarClassificacao('laranja',this)"></button>
+    <button type="button" class="mc-filter-btn mc-amarelo" aria-pressed="false" title="Amarelo — Urgente: até 60 min" onclick="filtrarClassificacao('amarelo',this)"></button>
+    <button type="button" class="mc-filter-btn mc-verde" aria-pressed="false" title="Verde — Pouco urgente: até 120 min" onclick="filtrarClassificacao('verde',this)"></button>
+    <button type="button" class="mc-filter-btn mc-azul" aria-pressed="false" title="Azul — Não urgente: até 240 min" onclick="filtrarClassificacao('azul',this)"></button>
+  </div>
+  <div id="patient-list" role="listbox" aria-label="Lista de pacientes"></div>
 </div>
 
 <!-- MAIN -->
 <div id="main">
-  <div id="tabs">
-    <div class="tab active" onclick="showTab('dados')">📋 Dados do Paciente</div>
-    <div class="tab" onclick="showTab('prescricao')">💊 Prescrição</div>
-    <div class="tab" onclick="showTab('etiqueta')">🏷️ Gerar Etiqueta</div>
+  <div id="tabs" role="tablist">
+    <div class="tab active" role="tab" tabindex="0" aria-selected="true" onclick="showTab('dados')" onkeydown="tabKeydown(event,'dados')">📋 Dados do Paciente</div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" onclick="showTab('prescricao')" onkeydown="tabKeydown(event,'prescricao')">💊 Prescrição</div>
+    <div class="tab" role="tab" tabindex="0" aria-selected="false" onclick="showTab('etiqueta')" onkeydown="tabKeydown(event,'etiqueta')">🏷️ Gerar Etiqueta</div>
   </div>
 
   <div id="content">
@@ -50,6 +74,7 @@
       <div class="card">
         <div class="card-header">
           <h3>👤 Identificação</h3>
+          <span class="mc-chip" id="chip-manchester">—</span>
           <span class="chip" id="chip-atend">—</span>
         </div>
         <div class="card-body">
@@ -112,6 +137,10 @@
         </div>
         <div class="card-body">
           <div class="info-grid">
+            <div class="info-item" style="grid-column:1/-1">
+              <span class="info-label">Classificação de Risco (Manchester)</span>
+              <span class="info-value" id="d-manchester">—</span>
+            </div>
             <div class="info-item">
               <span class="info-label">Nº Atendimento</span>
               <span class="info-value big" id="d-atend">—</span>
@@ -140,7 +169,7 @@
         <div class="card-header"><h3>💊 Prescrições Ativas</h3></div>
         <div class="card-body">
           <div class="rx-list" id="rx-list-view">
-            <div style="color:var(--gray-400);font-size:.75rem">Nenhuma prescrição ativa.</div>
+            <div class="empty-note">Nenhuma prescrição ativa.</div>
           </div>
         </div>
       </div>
@@ -152,14 +181,15 @@
         <div class="card-header"><h3>💊 Nova Prescrição</h3></div>
         <div class="card-body">
           <div class="form-grid">
-            <div class="f-group">
-              <label>Medicação *</label>
+            <div class="f-group" id="fg-med">
+              <label for="p-med">Medicação <span class="req">*</span></label>
               <select id="p-med" onchange="autoFillMed()">
                 <option value="">— Selecione —</option>
               </select>
+              <span class="f-error-msg">Selecione uma medicação.</span>
             </div>
-            <div class="f-group">
-              <label>Via de Administração *</label>
+            <div class="f-group" id="fg-via">
+              <label for="p-via">Via de Administração <span class="req">*</span></label>
               <select id="p-via">
                 <option>IV Direto</option>
                 <option>IV em Bomba</option>
@@ -171,12 +201,13 @@
                 <option>Tópico</option>
               </select>
             </div>
-            <div class="f-group">
-              <label>Dose / Concentração *</label>
+            <div class="f-group" id="fg-dose">
+              <label for="p-dose">Dose / Concentração <span class="req">*</span></label>
               <input type="text" id="p-dose" placeholder="Ex: 500 mg/mL Amp 2 mL"/>
+              <span class="f-error-msg">Informe a dose/concentração.</span>
             </div>
             <div class="f-group">
-              <label>Frequência</label>
+              <label for="p-freq">Frequência</label>
               <select id="p-freq">
                 <option>Dose única</option>
                 <option>6/6h</option>
@@ -188,15 +219,15 @@
               </select>
             </div>
             <div class="f-group">
-              <label>Médico Prescritor *</label>
+              <label for="p-medico-rx">Médico Prescritor <span class="req">*</span></label>
               <select id="p-medico-rx"></select>
             </div>
             <div class="f-group">
-              <label>Profissional que Preparará *</label>
+              <label for="p-prof-rx">Profissional que Preparará <span class="req">*</span></label>
               <select id="p-prof-rx"></select>
             </div>
             <div class="f-group full">
-              <label>Observações</label>
+              <label for="p-obs">Observações</label>
               <textarea id="p-obs" placeholder="Diluir em 100mL SF 0,9%; administrar em 30 min..."></textarea>
             </div>
           </div>
@@ -213,7 +244,7 @@
         <div class="card-header"><h3>📋 Prescrições do Paciente</h3><span class="chip" id="rx-count">0</span></div>
         <div class="card-body">
           <div class="rx-list" id="rx-list-full">
-            <div style="color:var(--gray-400);font-size:.75rem">Nenhuma prescrição cadastrada.</div>
+            <div class="empty-note">Nenhuma prescrição cadastrada.</div>
           </div>
         </div>
       </div>
@@ -226,26 +257,26 @@
         <div class="card-body">
           <div class="form-grid">
             <div class="f-group">
-              <label>Selecionar Prescrição</label>
+              <label for="e-rx-sel">Selecionar Prescrição</label>
               <select id="e-rx-sel" onchange="selecionarRxEtiq()">
                 <option value="">— Selecione a medicação —</option>
               </select>
             </div>
-            <div class="f-group">
-              <label>Profissional que Preparou *</label>
-              <select id="e-prof"></select>
+            <div class="f-group" id="fg-eprof">
+              <label for="e-prof">Profissional que Preparou <span class="req">*</span></label>
+              <select id="e-prof" onchange="renderEtiq()"></select>
             </div>
             <div class="f-group">
-              <label>Data da Administração</label>
+              <label for="e-data">Data da Administração</label>
               <input type="date" id="e-data" oninput="renderEtiq()"/>
             </div>
             <div class="f-group">
-              <label>Horário</label>
+              <label for="e-hora">Horário</label>
               <input type="time" id="e-hora" oninput="renderEtiq()"/>
             </div>
           </div>
           <div class="btn-bar">
-            <button class="btn-main btn-print-main" onclick="window.print()">
+            <button class="btn-main btn-print-main" onclick="prepararImpressao()">
               <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               Imprimir Etiqueta (100×50mm)
             </button>
@@ -254,7 +285,8 @@
       </div>
 
       <div id="etiq-wrap">
-        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-400);font-weight:700;margin-bottom:.2rem">▶ Prévia — ampliada 2.2× (impressão = tamanho real)</div>
+        <div style="font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint);font-weight:700;margin-bottom:.2rem">▶ Prévia — ampliada 2.2× (impressão = tamanho real)</div>
+        <div class="etiq-scale-outer">
         <div class="etiq-scale">
           <div id="etiqueta">
             <div class="e-head">
@@ -287,13 +319,29 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
 
   </div><!-- /content -->
 </div><!-- /main -->
 
-    <script src="js/script.js"></script>
+<!-- TOASTS -->
+<div id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+<!-- CONFIRM DIALOG -->
+<div id="confirm-overlay">
+  <div class="confirm-box">
+    <h4 id="confirm-title">Confirmar ação</h4>
+    <p id="confirm-msg">Tem certeza?</p>
+    <div class="confirm-actions">
+      <button class="btn-main btn-clear-main" onclick="confirmCancel()">Cancelar</button>
+      <button class="btn-main btn-red-solid" id="confirm-ok-btn" onclick="confirmAccept()">Remover</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/script.js"></script>
 
 </body>
 </html>

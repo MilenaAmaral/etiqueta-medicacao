@@ -1,4 +1,81 @@
 // ════════════════════════════════════════════
+// TEMA (claro / escuro)
+// ════════════════════════════════════════════
+function aplicarIconeTema(){
+  const theme=document.documentElement.getAttribute('data-theme');
+  const btn=document.getElementById('themeToggle');
+  if(!btn)return;
+  btn.textContent=theme==='dark'?'☀️':'🌙';
+  btn.setAttribute('aria-label',theme==='dark'?'Mudar para modo claro':'Mudar para modo escuro');
+}
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const atual=html.getAttribute('data-theme')||'light';
+  const novo=atual==='dark'?'light':'dark';
+  html.setAttribute('data-theme',novo);
+  try{localStorage.setItem('sysmed-theme',novo)}catch(e){}
+  aplicarIconeTema();
+}
+
+// ════════════════════════════════════════════
+// SIDEBAR MOBILE (gaveta)
+// ════════════════════════════════════════════
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  const btn=document.getElementById('menuToggle');
+  const abrindo=!sb.classList.contains('open');
+  sb.classList.toggle('open',abrindo);
+  ov.classList.toggle('show',abrindo);
+  btn.setAttribute('aria-expanded',String(abrindo));
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+  document.getElementById('menuToggle').setAttribute('aria-expanded','false');
+}
+
+// ════════════════════════════════════════════
+// TOASTS (feedback visual, substitui alert())
+// ════════════════════════════════════════════
+const TOAST_ICONS={success:'✅',error:'⚠️',info:'ℹ️'};
+function showToast(msg,tipo='info',duracao=3200){
+  const stack=document.getElementById('toast-stack');
+  if(!stack)return;
+  const el=document.createElement('div');
+  el.className=`toast ${tipo}`;
+  el.innerHTML=`<span class="toast-ic">${TOAST_ICONS[tipo]||'ℹ️'}</span><span class="toast-msg">${msg}</span>`;
+  stack.appendChild(el);
+  setTimeout(()=>{
+    el.style.transition='opacity .2s';
+    el.style.opacity='0';
+    setTimeout(()=>el.remove(),200);
+  },duracao);
+}
+
+// ════════════════════════════════════════════
+// DIÁLOGO DE CONFIRMAÇÃO (substitui confirm())
+// ════════════════════════════════════════════
+let _confirmCallback=null;
+function askConfirm(titulo,mensagem,onConfirm,labelOk='Remover'){
+  document.getElementById('confirm-title').textContent=titulo;
+  document.getElementById('confirm-msg').textContent=mensagem;
+  document.getElementById('confirm-ok-btn').textContent=labelOk;
+  _confirmCallback=onConfirm;
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function confirmAccept(){
+  document.getElementById('confirm-overlay').classList.remove('show');
+  if(typeof _confirmCallback==='function')_confirmCallback();
+  _confirmCallback=null;
+}
+function confirmCancel(){
+  document.getElementById('confirm-overlay').classList.remove('show');
+  _confirmCallback=null;
+}
+
+// ════════════════════════════════════════════
 // DADOS DO SISTEMA
 // ════════════════════════════════════════════
 
@@ -120,6 +197,31 @@ function gerarAtend(){return String(1700000+Math.floor(Math.random()*99999))}
 
 function fmtData(v){if(!v)return '—';const[y,m,d]=v.split('-');return `${d}/${m}/${y}`}
 
+// ════════════════════════════════════════════
+// PROTOCOLO DE MANCHESTER
+// ════════════════════════════════════════════
+const MANCHESTER=[
+  {id:'vermelho',nome:'Vermelho',sub:'Emergência',      desc:'Risco iminente de morte.',                     tempoLabel:'Atendimento imediato',   peso:2},
+  {id:'laranja', nome:'Laranja', sub:'Muito urgente',   desc:'Quadro grave, pode se agravar rapidamente.',   tempoLabel:'Até 10 minutos',         peso:7},
+  {id:'amarelo', nome:'Amarelo', sub:'Urgente',         desc:'Avaliação rápida — sem risco imediato de morte.',tempoLabel:'Até 60 minutos',       peso:31},
+  {id:'verde',   nome:'Verde',   sub:'Pouco urgente',   desc:'Caso leve, pode aguardar com segurança.',      tempoLabel:'Até 120 minutos',        peso:38},
+  {id:'azul',    nome:'Azul',    sub:'Não urgente',     desc:'Caso simples, tratável em unidade básica.',    tempoLabel:'Até 240 minutos',        peso:22},
+];
+const MC_ORDEM=MANCHESTER.map(m=>m.id);
+
+function sortearClassificacao(){
+  const total=MANCHESTER.reduce((a,m)=>a+m.peso,0);
+  let r=Math.random()*total;
+  for(const m of MANCHESTER){ if(r<m.peso) return m.id; r-=m.peso; }
+  return 'azul';
+}
+function getManchester(id){return MANCHESTER.find(m=>m.id===id)||MANCHESTER[3]}
+
+function mcChipHTML(id){
+  const m=getManchester(id);
+  return `<span class="mc-chip mc-${m.id}" title="${m.desc}"><span class="mc-dot"></span>${m.nome} · ${m.sub}</span>`;
+}
+
 // Gera 50 pacientes
 const PACIENTES=[];
 for(let i=0;i<50;i++){
@@ -128,6 +230,7 @@ for(let i=0;i<50;i++){
   const maesArr=fem?MAES_F:MAES_M;
   const idx=i<25?i:(i-25);
   const medIdx=Math.floor(Math.random()*MEDICOS.length);
+  const entradaTs=Date.now()-Math.random()*8*3600000;
   PACIENTES.push({
     id:`PAC${String(i+1).padStart(3,'0')}`,
     nome:nomesArr[idx]||(fem?NOMES_F[0]:NOMES_M[0]),
@@ -143,7 +246,9 @@ for(let i=0;i<50;i++){
     alergia:ALERGIAS[i],
     antecedentes:ANTECEDENTES[i],
     peso:`${45+Math.floor(Math.random()*75)} kg`,
-    entrada:new Date(Date.now()-Math.random()*8*3600000).toISOString().split('T')[0],
+    entrada:new Date(entradaTs).toISOString().split('T')[0],
+    entradaTs,
+    classificacao:sortearClassificacao(),
     prescricoes:[]
   });
 }
@@ -156,16 +261,43 @@ let pacAtual=null;
 // ════════════════════════════════════════════
 // RENDER LISTA
 // ════════════════════════════════════════════
+let filtroClassificacao=null;
+
+function filtrarClassificacao(id,btn){
+  filtroClassificacao=id;
+  document.querySelectorAll('.mc-filter-btn').forEach(b=>{
+    b.classList.toggle('active',b===btn);
+    b.setAttribute('aria-pressed',String(b===btn));
+  });
+  renderLista(document.getElementById('searchInput').value);
+}
+
 function renderLista(filtro=''){
   const el=document.getElementById('patient-list');
-  const lista=PACIENTES.filter(p=>p.nome.toLowerCase().includes(filtro.toLowerCase())||p.id.includes(filtro));
+  let lista=PACIENTES.filter(p=>p.nome.toLowerCase().includes(filtro.toLowerCase())||p.id.includes(filtro));
+  if(filtroClassificacao) lista=lista.filter(p=>p.classificacao===filtroClassificacao);
+  // fila real: mais grave primeiro; empate = quem chegou antes
+  lista=lista.slice().sort((a,b)=>MC_ORDEM.indexOf(a.classificacao)-MC_ORDEM.indexOf(b.classificacao)||a.entradaTs-b.entradaTs);
+
+  const countEl=document.getElementById('patient-count');
+  if(countEl)countEl.textContent=lista.length;
+
+  if(!lista.length){
+    el.innerHTML=`<div class="search-empty">Nenhum paciente encontrado${filtro?` para "${filtro}"`:''}.</div>`;
+    return;
+  }
+
   el.innerHTML=lista.map(p=>{
     const ini=p.nome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     const fem=p.sexo==='Feminino';
+    const ativo=pacAtual?.id===p.id;
+    const mc=getManchester(p.classificacao);
     const al=p.alergia!=='NKDA'?`<span class="pat-badge badge-red">ALG</span>`:
               p.prescricoes.length?`<span class="pat-badge badge-green">RX:${p.prescricoes.length}</span>`:
               `<span class="pat-badge badge-amber">${p.leito}</span>`;
-    return `<div class="patient-item${pacAtual?.id===p.id?' active':''}" onclick="selecionarPac('${p.id}')">
+    return `<div class="patient-item${ativo?' active':''}" role="option" aria-selected="${ativo}" tabindex="0"
+      onclick="selecionarPac('${p.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selecionarPac('${p.id}')}">
+      <span class="mc-bar mc-${mc.id}" title="${mc.nome} — ${mc.sub}: ${mc.desc}"></span>
       <div class="pat-avatar${fem?' f':''}">${ini}</div>
       <div class="pat-info">
         <div class="pat-name">${p.nome}</div>
@@ -188,12 +320,21 @@ function selecionarPac(id){
   preencherSelects();
   renderRxLists();
   renderEtiq();
+  limparErros();
+  if(window.innerWidth<=860)closeSidebar();
 }
 
 function preencherDados(){
   if(!pacAtual)return;
   const p=pacAtual;
   document.getElementById('chip-atend').textContent=p.id;
+  const mc=getManchester(p.classificacao);
+  const chipMc=document.getElementById('chip-manchester');
+  if(chipMc){
+    chipMc.className=`mc-chip mc-${mc.id}`;
+    chipMc.title=mc.desc;
+    chipMc.innerHTML=`<span class="mc-dot"></span>${mc.nome} · ${mc.sub}`;
+  }
   document.getElementById('d-nome').textContent=p.nome;
   document.getElementById('d-mae').textContent=p.mae;
   document.getElementById('d-nasc').textContent=fmtData(p.nascimento);
@@ -210,6 +351,10 @@ function preencherDados(){
   document.getElementById('d-medico').textContent=p.medico.nome+' · '+p.medico.crm;
   document.getElementById('d-leito').textContent=p.leito;
   document.getElementById('d-queixa').textContent=p.queixa;
+  const mcField=document.getElementById('d-manchester');
+  if(mcField){
+    mcField.innerHTML=`${mcChipHTML(p.classificacao)} <span class="mc-meta">Meta de atendimento: ${mc.tempoLabel} · ${mc.desc}</span>`;
+  }
 }
 
 // ════════════════════════════════════════════
@@ -247,10 +392,23 @@ function autoFillMed(){
 // ════════════════════════════════════════════
 // PRESCRIÇÕES
 // ════════════════════════════════════════════
+function limparErros(){
+  document.querySelectorAll('.f-group.f-error').forEach(el=>el.classList.remove('f-error'));
+}
+
 function adicionarRx(){
-  if(!pacAtual){alert('Selecione um paciente primeiro.');return}
+  if(!pacAtual){showToast('Selecione um paciente na lista antes de prescrever.','error');return}
+
+  limparErros();
+  let valido=true;
   const midx=document.getElementById('p-med').value;
-  if(midx===''){alert('Selecione uma medicação.');return}
+  const dose=document.getElementById('p-dose').value.trim();
+
+  if(midx===''){document.getElementById('fg-med').classList.add('f-error');valido=false}
+  if(!dose){document.getElementById('fg-dose').classList.add('f-error');valido=false}
+
+  if(!valido){showToast('Preencha os campos obrigatórios destacados.','error');return}
+
   const med=MEDICACOES[midx];
   const medId=document.getElementById('p-medico-rx').value;
   const profId=document.getElementById('p-prof-rx').value;
@@ -259,7 +417,7 @@ function adicionarRx(){
   const rx={
     id:Date.now(),
     med:med.nome,
-    dose:document.getElementById('p-dose').value||med.dose,
+    dose:dose||med.dose,
     via:document.getElementById('p-via').value,
     freq:document.getElementById('p-freq').value,
     obs:document.getElementById('p-obs').value,
@@ -274,13 +432,23 @@ function adicionarRx(){
   document.getElementById('p-med').value='';
   document.getElementById('p-dose').value='';
   document.getElementById('p-obs').value='';
+  showToast(`${med.nome} adicionada à prescrição de ${pacAtual.nome.split(' ')[0]}.`,'success');
 }
 
 function removerRx(rxId){
   if(!pacAtual)return;
-  pacAtual.prescricoes=pacAtual.prescricoes.filter(r=>r.id!==rxId);
-  renderRxLists();
-  renderEtiq();
+  const rx=pacAtual.prescricoes.find(r=>r.id===rxId);
+  if(!rx)return;
+  askConfirm(
+    'Remover prescrição?',
+    `Isso vai remover "${rx.med} — ${rx.dose}" da lista de prescrições de ${pacAtual.nome}. Essa ação não pode ser desfeita.`,
+    ()=>{
+      pacAtual.prescricoes=pacAtual.prescricoes.filter(r=>r.id!==rxId);
+      renderRxLists();
+      renderEtiq();
+      showToast('Prescrição removida.','info');
+    }
+  );
 }
 
 function renderRxLists(){
@@ -317,6 +485,27 @@ function renderRxLists(){
   const sel=document.getElementById('e-rx-sel');
   sel.innerHTML='<option value="">— Selecione a medicação —</option>'+
     rxs.map(r=>`<option value="${r.id}">${r.med} — ${r.dose} (${r.via})</option>`).join('');
+}
+
+function prepararImpressao(){
+  if(!pacAtual){showToast('Selecione um paciente primeiro.','error');return}
+  limparErros();
+  let valido=true;
+
+  if(!document.getElementById('e-prof').value){
+    document.getElementById('fg-eprof').classList.add('f-error');
+    valido=false;
+  }
+  if(!pacAtual.prescricoes.length){
+    showToast('Este paciente ainda não possui prescrições cadastradas.','error');
+    valido=false;
+  }else if(!document.getElementById('e-rx-sel').value){
+    showToast('Selecione qual prescrição vai na etiqueta.','error');
+    valido=false;
+  }
+
+  if(!valido)return;
+  window.print();
 }
 
 function usarRxEtiq(rxId){
@@ -387,9 +576,20 @@ function renderEtiq(){
 // ════════════════════════════════════════════
 // TABS
 // ════════════════════════════════════════════
+const TAB_ORDER=['dados','prescricao','etiqueta'];
+
+function tabKeydown(ev,t){
+  if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();showTab(t);return}
+  const i=TAB_ORDER.indexOf(t);
+  if(ev.key==='ArrowRight'){ev.preventDefault();const n=TAB_ORDER[(i+1)%TAB_ORDER.length];showTab(n);document.querySelectorAll('.tab')[TAB_ORDER.indexOf(n)].focus()}
+  if(ev.key==='ArrowLeft'){ev.preventDefault();const n=TAB_ORDER[(i-1+TAB_ORDER.length)%TAB_ORDER.length];showTab(n);document.querySelectorAll('.tab')[TAB_ORDER.indexOf(n)].focus()}
+}
+
 function showTab(t){
   document.querySelectorAll('.tab').forEach((el,i)=>{
-    el.classList.toggle('active',['dados','prescricao','etiqueta'][i]===t);
+    const ativa=TAB_ORDER[i]===t;
+    el.classList.toggle('active',ativa);
+    el.setAttribute('aria-selected',String(ativa));
   });
   const content=document.getElementById('content');
 
@@ -426,6 +626,7 @@ setInterval(atualizarRelogio,1000);atualizarRelogio();
 // INIT
 // ════════════════════════════════════════════
 (function init(){
+  aplicarIconeTema();
   renderLista();
   preencherSelects();
   // preenche data/hora padrão
@@ -434,4 +635,21 @@ setInterval(atualizarRelogio,1000);atualizarRelogio();
   document.getElementById('e-hora').value=new Date().toTimeString().slice(0,5);
   // seleciona primeiro paciente
   selecionarPac(PACIENTES[0].id);
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      confirmCancel();
+      closeSidebar();
+    }
+  });
+
+  // limpa destaque de erro assim que o usuário corrige o campo
+  document.getElementById('content').addEventListener('input',e=>{
+    const fg=e.target.closest('.f-group');
+    if(fg)fg.classList.remove('f-error');
+  });
+  document.getElementById('content').addEventListener('change',e=>{
+    const fg=e.target.closest('.f-group');
+    if(fg)fg.classList.remove('f-error');
+  });
 })();
