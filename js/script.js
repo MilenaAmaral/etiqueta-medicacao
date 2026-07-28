@@ -197,6 +197,31 @@ function gerarAtend(){return String(1700000+Math.floor(Math.random()*99999))}
 
 function fmtData(v){if(!v)return '—';const[y,m,d]=v.split('-');return `${d}/${m}/${y}`}
 
+// ════════════════════════════════════════════
+// PROTOCOLO DE MANCHESTER
+// ════════════════════════════════════════════
+const MANCHESTER=[
+  {id:'vermelho',nome:'Vermelho',sub:'Emergência',      desc:'Risco iminente de morte.',                     tempoLabel:'Atendimento imediato',   peso:2},
+  {id:'laranja', nome:'Laranja', sub:'Muito urgente',   desc:'Quadro grave, pode se agravar rapidamente.',   tempoLabel:'Até 10 minutos',         peso:7},
+  {id:'amarelo', nome:'Amarelo', sub:'Urgente',         desc:'Avaliação rápida — sem risco imediato de morte.',tempoLabel:'Até 60 minutos',       peso:31},
+  {id:'verde',   nome:'Verde',   sub:'Pouco urgente',   desc:'Caso leve, pode aguardar com segurança.',      tempoLabel:'Até 120 minutos',        peso:38},
+  {id:'azul',    nome:'Azul',    sub:'Não urgente',     desc:'Caso simples, tratável em unidade básica.',    tempoLabel:'Até 240 minutos',        peso:22},
+];
+const MC_ORDEM=MANCHESTER.map(m=>m.id);
+
+function sortearClassificacao(){
+  const total=MANCHESTER.reduce((a,m)=>a+m.peso,0);
+  let r=Math.random()*total;
+  for(const m of MANCHESTER){ if(r<m.peso) return m.id; r-=m.peso; }
+  return 'azul';
+}
+function getManchester(id){return MANCHESTER.find(m=>m.id===id)||MANCHESTER[3]}
+
+function mcChipHTML(id){
+  const m=getManchester(id);
+  return `<span class="mc-chip mc-${m.id}" title="${m.desc}"><span class="mc-dot"></span>${m.nome} · ${m.sub}</span>`;
+}
+
 // Gera 50 pacientes
 const PACIENTES=[];
 for(let i=0;i<50;i++){
@@ -205,6 +230,7 @@ for(let i=0;i<50;i++){
   const maesArr=fem?MAES_F:MAES_M;
   const idx=i<25?i:(i-25);
   const medIdx=Math.floor(Math.random()*MEDICOS.length);
+  const entradaTs=Date.now()-Math.random()*8*3600000;
   PACIENTES.push({
     id:`PAC${String(i+1).padStart(3,'0')}`,
     nome:nomesArr[idx]||(fem?NOMES_F[0]:NOMES_M[0]),
@@ -220,7 +246,9 @@ for(let i=0;i<50;i++){
     alergia:ALERGIAS[i],
     antecedentes:ANTECEDENTES[i],
     peso:`${45+Math.floor(Math.random()*75)} kg`,
-    entrada:new Date(Date.now()-Math.random()*8*3600000).toISOString().split('T')[0],
+    entrada:new Date(entradaTs).toISOString().split('T')[0],
+    entradaTs,
+    classificacao:sortearClassificacao(),
     prescricoes:[]
   });
 }
@@ -233,14 +261,29 @@ let pacAtual=null;
 // ════════════════════════════════════════════
 // RENDER LISTA
 // ════════════════════════════════════════════
+let filtroClassificacao=null;
+
+function filtrarClassificacao(id,btn){
+  filtroClassificacao=id;
+  document.querySelectorAll('.mc-filter-btn').forEach(b=>{
+    b.classList.toggle('active',b===btn);
+    b.setAttribute('aria-pressed',String(b===btn));
+  });
+  renderLista(document.getElementById('searchInput').value);
+}
+
 function renderLista(filtro=''){
   const el=document.getElementById('patient-list');
-  const lista=PACIENTES.filter(p=>p.nome.toLowerCase().includes(filtro.toLowerCase())||p.id.includes(filtro));
+  let lista=PACIENTES.filter(p=>p.nome.toLowerCase().includes(filtro.toLowerCase())||p.id.includes(filtro));
+  if(filtroClassificacao) lista=lista.filter(p=>p.classificacao===filtroClassificacao);
+  // fila real: mais grave primeiro; empate = quem chegou antes
+  lista=lista.slice().sort((a,b)=>MC_ORDEM.indexOf(a.classificacao)-MC_ORDEM.indexOf(b.classificacao)||a.entradaTs-b.entradaTs);
+
   const countEl=document.getElementById('patient-count');
   if(countEl)countEl.textContent=lista.length;
 
   if(!lista.length){
-    el.innerHTML=`<div class="search-empty">Nenhum paciente encontrado para "${filtro}".</div>`;
+    el.innerHTML=`<div class="search-empty">Nenhum paciente encontrado${filtro?` para "${filtro}"`:''}.</div>`;
     return;
   }
 
@@ -248,11 +291,13 @@ function renderLista(filtro=''){
     const ini=p.nome.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
     const fem=p.sexo==='Feminino';
     const ativo=pacAtual?.id===p.id;
+    const mc=getManchester(p.classificacao);
     const al=p.alergia!=='NKDA'?`<span class="pat-badge badge-red">ALG</span>`:
               p.prescricoes.length?`<span class="pat-badge badge-green">RX:${p.prescricoes.length}</span>`:
               `<span class="pat-badge badge-amber">${p.leito}</span>`;
     return `<div class="patient-item${ativo?' active':''}" role="option" aria-selected="${ativo}" tabindex="0"
       onclick="selecionarPac('${p.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selecionarPac('${p.id}')}">
+      <span class="mc-bar mc-${mc.id}" title="${mc.nome} — ${mc.sub}: ${mc.desc}"></span>
       <div class="pat-avatar${fem?' f':''}">${ini}</div>
       <div class="pat-info">
         <div class="pat-name">${p.nome}</div>
@@ -283,6 +328,13 @@ function preencherDados(){
   if(!pacAtual)return;
   const p=pacAtual;
   document.getElementById('chip-atend').textContent=p.id;
+  const mc=getManchester(p.classificacao);
+  const chipMc=document.getElementById('chip-manchester');
+  if(chipMc){
+    chipMc.className=`mc-chip mc-${mc.id}`;
+    chipMc.title=mc.desc;
+    chipMc.innerHTML=`<span class="mc-dot"></span>${mc.nome} · ${mc.sub}`;
+  }
   document.getElementById('d-nome').textContent=p.nome;
   document.getElementById('d-mae').textContent=p.mae;
   document.getElementById('d-nasc').textContent=fmtData(p.nascimento);
@@ -299,6 +351,10 @@ function preencherDados(){
   document.getElementById('d-medico').textContent=p.medico.nome+' · '+p.medico.crm;
   document.getElementById('d-leito').textContent=p.leito;
   document.getElementById('d-queixa').textContent=p.queixa;
+  const mcField=document.getElementById('d-manchester');
+  if(mcField){
+    mcField.innerHTML=`${mcChipHTML(p.classificacao)} <span class="mc-meta">Meta de atendimento: ${mc.tempoLabel} · ${mc.desc}</span>`;
+  }
 }
 
 // ════════════════════════════════════════════
